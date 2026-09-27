@@ -1,0 +1,21 @@
+{
+  "name": "agentwatch",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run --workspace packages/backend dev\" \"npm run --workspace packages/frontend dev\"",
+    "build": "npm run --workspace packages/backend build && npm run --workspace packages/frontend build",
+    "test": "npm run --workspace packages/backend test",
+    "lint": "npm run --workspace packages/backend lint && npm run --workspace packages/frontend lint",
+    "format": "npm run --workspace packages/backend format && npm run --workspace packages/frontend format",
+    "db:migrate": "npm run --workspace packages/backend migrate",
+    "db:seed": "npm run --workspace packages/backend seed:dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

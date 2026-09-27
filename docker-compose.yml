@@ -1,0 +1,101 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentwatch_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentwatch}
+      POSTGRES_USER: ${POSTGRES_USER:-agentwatch_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # F-14 FIX: Bind to loopback only. In production, remove host port bindings entirely
+      # and access via the agentwatch_internal Docker network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./packages/backend/src/database/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentwatch_user} -d ${POSTGRES_DB:-agentwatch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agentwatch_internal
+
+  # ─── Redis (rate limiting, session store) ─────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: agentwatch_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme} --appendonly yes
+    ports:
+      # F-15 FIX: Bind to loopback only. In production, remove host port bindings entirely.
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agentwatch_internal
+
+  # ─── Backend API ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: agentwatch_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+      - packages/backend/.env
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - ./packages/backend/src:/app/src:ro
+    networks:
+      - agentwatch_internal
+      - agentwatch_external
+
+  # ─── Frontend (dev server) ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: agentwatch_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    env_file:
+      - packages/frontend/.env
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./packages/frontend/src:/app/src:ro
+    networks:
+      - agentwatch_external
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  agentwatch_internal:
+    driver: bridge
+    internal: true          # DB + Redis not reachable from outside Docker network
+  agentwatch_external:
+    driver: bridge
