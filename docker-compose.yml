@@ -87,11 +87,38 @@ services:
     networks:
       - agentwatch_external
 
+  # ─── Agent Client (daemon — simulates an enrolled workstation) ────────────
+  agent-client:
+    build:
+      context: ./packages/agent-client
+      dockerfile: Dockerfile
+      target: development
+    container_name: agentwatch_agent_client
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      AGENT_BACKEND_URL: http://backend:4000/api
+      # Set this to an enrollment token from your manager before first run:
+      # AGENT_ENROLLMENT_TOKEN: <paste-token-here>
+      AGENT_DEVICE_NAME: "Docker-Agent-001"
+      AGENT_HEARTBEAT_INTERVAL_SECONDS: "30"
+      LOG_LEVEL: "info"
+      AGENT_CONFIG_PATH: "/app/config/agent-config.json"
+    volumes:
+      - agent_config:/app/config     # Persists device token across restarts
+      - ./packages/agent-client/src:/app/src:ro
+    networks:
+      - agentwatch_external
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
+  agent_config:
+    driver: local
+
 
 networks:
   agentwatch_internal:

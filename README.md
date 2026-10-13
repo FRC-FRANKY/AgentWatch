@@ -85,6 +85,14 @@ npm run dev
 
 ---
 
+## How to Use
+
+See [docs/usage.md](./docs/usage.md) for the end-user workflow, login steps, dashboard usage, and monitoring session flow.
+
+## Testing
+
+See [docs/testing.md](./docs/testing.md) for the full local testing workflow, including backend tests, frontend checks, and startup validation.
+
 ## Security
 
 See [docs/SECURITY.md](./docs/SECURITY.md).
