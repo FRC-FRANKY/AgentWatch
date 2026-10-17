@@ -1,0 +1,37 @@
+{
+  "name": "@agentwatch/frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173 --strictPort",
+    "lint": "eslint src --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "date-fns": "^3.6.0",
+    "firebase": "^13.0.0",
+    "lucide-react": "^1.48.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.3.0",
+    "@typescript-eslint/parser": "^8.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.9.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
