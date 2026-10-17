@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules/
 .pnpm-store/
 .yarn/
 .yarn-cache/
@@ -17,10 +18,10 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # Build
-/dist/
-/build/
-/out/
-/coverage/
+dist/
+build/
+out/
+coverage/
 
 # Cache
 .cache/
