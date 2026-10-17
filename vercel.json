@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm ci --include=optional",
+  "installCommand": "npm install --include=optional",
   "buildCommand": "npm run build --workspace=@agentwatch/frontend",
   "outputDirectory": "packages/frontend/dist",
   "nodeVersion": "24.x",
