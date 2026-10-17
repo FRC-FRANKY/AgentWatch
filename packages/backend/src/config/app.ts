@@ -89,11 +89,14 @@ export function createApp(): Application {
   app.use(
     cors({
       origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
-        // Allow server-to-server requests (no origin header) in development
-        if (!origin && env.NODE_ENV === 'development') {
+        // Allow server-to-server / proxied requests (no Origin header).
+        // In production, Vercel's internal rewrite proxy strips the Origin header
+        // when routing /api/* from the frontend service to the backend container,
+        // so we must allow no-origin requests in all environments.
+        if (!origin) {
           return callback(null, true);
         }
-        if (origin && allowedOrigins.includes(origin)) {
+        if (allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
         logger.warn({ origin }, 'CORS: rejected request from unauthorized origin');

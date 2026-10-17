@@ -1,12 +1,40 @@
 {
-  "installCommand": "npm install --include=optional",
-  "buildCommand": "npm run build --workspace=@agentwatch/frontend",
-  "outputDirectory": "packages/frontend/dist",
-  "nodeVersion": "24.x",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "backend": {
+      "root": "packages/backend",
+      "runtime": "container"
+    },
+    "frontend": {
+      "root": "packages/frontend",
+      "framework": "vite",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist",
+      "installCommand": "npm install --include=optional",
+      "environment": {
+        "VITE_API_URL": "/api",
+        "VITE_APP_NAME": "AgentWatch"
+      }
+    }
+  },
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/ws/signal",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": {
+        "service": "frontend"
+      }
     }
   ]
-}
+}
