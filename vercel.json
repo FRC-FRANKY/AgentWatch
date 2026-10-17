@@ -10,11 +10,7 @@
       "framework": "vite",
       "buildCommand": "npm run build",
       "outputDirectory": "dist",
-      "installCommand": "npm install --include=optional",
-      "environment": {
-        "VITE_API_URL": "/api",
-        "VITE_APP_NAME": "AgentWatch"
-      }
+      "installCommand": "npm install --include=optional"
     }
   },
   "rewrites": [

@@ -151,7 +151,7 @@ export interface PaginatedResponse<T> {
 
 // ── Axios Instance ────────────────────────────────────────────────────────────
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 let refreshPromise: Promise<string | null> | null = null;
 
