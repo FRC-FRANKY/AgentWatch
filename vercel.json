@@ -1,11 +1,12 @@
 {
-  "installCommand": "npm ci",
+  "installCommand": "npm ci --include=optional",
   "buildCommand": "npm run build --workspace=@agentwatch/frontend",
   "outputDirectory": "packages/frontend/dist",
+  "nodeVersion": "24.x",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
-}
+}
