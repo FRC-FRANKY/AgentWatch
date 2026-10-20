@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.json && node -e \"require('fs').cpSync('src/database/migrations','dist/database/migrations',{recursive:true})\"",
     "start": "node dist/index.js",
     "migrate": "node dist/database/migrate.js",
     "migrate:rollback": "node dist/database/rollback.js",
