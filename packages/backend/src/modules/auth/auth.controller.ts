@@ -7,6 +7,7 @@ import * as authService from './auth.service';
 import * as mfaService from './mfa.service';
 import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
+import { getFirebaseCustomToken } from '../../config/firebase';
 
 const REFRESH_COOKIE_NAME = 'agentwatch_rt';
 const COOKIE_OPTIONS = {
@@ -170,6 +171,45 @@ export async function handleMfaSetupConfirm(req: Request, res: Response, next: N
       return;
     }
     res.status(200).json({ message: 'MFA activated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /auth/firebase-token
+ *
+ * Issues a short-lived Firebase Custom Token for the authenticated manager.
+ * The token's Firebase UID equals the manager's PostgreSQL user ID, enabling
+ * Firestore Security Rules to enforce per-manager document access.
+ *
+ * SECURITY:
+ * - Requires a valid JWT access token (authenticate middleware)
+ * - Token is issued only after successful backend authentication
+ * - Custom token expires in 1 hour (Firebase limit)
+ * - Only grants Firestore read permissions as defined in firestore.rules
+ */
+export async function handleFirebaseToken(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const token = await getFirebaseCustomToken(req.user.id, req.user.role);
+
+    if (!token) {
+      // Firebase is not configured — return a sentinel so the frontend
+      // falls back to anonymous auth gracefully.
+      res.status(200).json({ firebaseToken: null, reason: 'firebase_disabled' });
+      return;
+    }
+
+    res.status(200).json({ firebaseToken: token });
   } catch (err) {
     next(err);
   }

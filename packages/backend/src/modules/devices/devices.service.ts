@@ -17,7 +17,7 @@ import { query } from '../../config/database';
 import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import { AuditService } from '../audit/audit.service';
-import { setDevicePresence, setDeviceOffline } from '../../config/firebase';
+import { setDevicePresence, setDeviceOffline, setFirestoreDeviceStatus, setFirestoreDeviceOffline } from '../../config/firebase';
 import type { DeviceJwtPayload } from '../../shared/types/auth.types';
 import type {
   DeviceSummary,
@@ -250,13 +250,22 @@ export async function heartbeatDevice(
 
   logger.info({ deviceId: device.id, agentUserId: payload.agent_user_id }, 'Device heartbeat received');
 
-  // Write real-time presence to Firebase (fire-and-forget — non-critical)
+  // Write real-time presence to Firebase RTDB (fire-and-forget — non-critical)
   void setDevicePresence(device.id, {
     online: true,
     agentUserId: payload.agent_user_id,
     lastSeen: heartbeatAt.getTime(),
     sessionId: null,  // Updated when a monitoring session starts
   });
+
+  // Also write to Firestore for dashboard live badges
+  void setFirestoreDeviceStatus(
+    device.id,
+    payload.agent_user_id,
+    'ONLINE',
+    dto.hostname ?? payload.hostname,
+    sourceIp,
+  );
 
   return {
     deviceId: device.id,
@@ -276,5 +285,6 @@ export async function markDeviceOffline(deviceId: string): Promise<void> {
     [deviceId],
   );
   void setDeviceOffline(deviceId);
+  void setFirestoreDeviceOffline(deviceId);
   logger.info({ deviceId }, 'Device marked OFFLINE');
 }

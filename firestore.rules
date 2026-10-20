@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Default deny ────────────────────────────────────────────────────────
+    // All paths not explicitly allowed below are denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── deviceStatus/{deviceId} ─────────────────────────────────────────────
+    //
+    // Written exclusively by the backend Admin SDK (bypasses these rules).
+    // Frontend clients may read: authenticated users only.
+    // No client writes are permitted — all mutations go through the backend API.
+    //
+    match /deviceStatus/{deviceId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // Admin SDK only
+    }
+
+    // ── sessionStatus/{sessionId} ───────────────────────────────────────────
+    //
+    // Written exclusively by the backend Admin SDK.
+    // Frontend clients may read a session document only if:
+    //   - The user is authenticated, AND
+    //   - The managerId field in the document matches the caller's UID
+    //     (prevents cross-manager session visibility)
+    //
+    // Note: The backend enforces deeper authorization (manager-agent grant check).
+    // This rule is a defence-in-depth layer — it is not the sole access control.
+    //
+    match /sessionStatus/{sessionId} {
+      allow read: if request.auth != null
+                  && resource.data.managerId == request.auth.uid;
+      allow write: if false;  // Admin SDK only
+    }
+
+    // ── dashboardStats/{managerId} ──────────────────────────────────────────
+    //
+    // Written exclusively by the backend Admin SDK.
+    // Each document contains stats scoped to one manager.
+    // A manager may only read their own stats document (uid == managerId).
+    //
+    match /dashboardStats/{managerId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == managerId;
+      allow write: if false;  // Admin SDK only
+    }
+
+    // ── Future collections ──────────────────────────────────────────────────
+    // Add new collections here. Default deny above prevents accidental exposure.
+  }
+}

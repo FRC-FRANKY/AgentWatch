@@ -14,6 +14,7 @@ import {
   handleMe,
   handleMfaSetupInitiate,
   handleMfaSetupConfirm,
+  handleFirebaseToken,
 } from './auth.controller';
 
 export const authRoutes = Router();
@@ -28,6 +29,10 @@ authRoutes.post('/refresh', handleRefresh);   // Token comes from httpOnly cooki
 // ── Authenticated Routes ───────────────────────────────────────────────────────
 authRoutes.get('/me', authenticate, handleMe);
 authRoutes.post('/logout', authenticate, handleLogout);
+
+// Firebase Custom Token — lets frontend sign in with manager's PostgreSQL user ID as UID
+// so Firestore Security Rules (auth.uid == managerId) work correctly.
+authRoutes.get('/firebase-token', authenticate, handleFirebaseToken);
 
 // MFA Setup (requires authenticated user)
 authRoutes.post('/mfa/setup', authenticate, handleMfaSetupInitiate);

@@ -263,6 +263,15 @@ export const authApi = {
     return data;
   },
 
+  async getFirebaseToken(): Promise<string | null> {
+    try {
+      const { data } = await apiClient.get<{ firebaseToken: string | null }>('/auth/firebase-token');
+      return data.firebaseToken ?? null;
+    } catch {
+      return null;  // Graceful fallback — Firebase auth is non-critical
+    }
+  },
+
   async refresh(): Promise<{ accessToken: string; expiresIn: number }> {
     const { data } = await axios.post<{ accessToken: string; expiresIn: number }>(
       `${API_BASE}/auth/refresh`,

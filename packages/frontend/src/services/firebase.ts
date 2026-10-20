@@ -30,6 +30,7 @@ import {
 import {
   getAuth,
   signInAnonymously,
+  signInWithCustomToken,
   type Auth,
 } from 'firebase/auth';
 
@@ -54,7 +55,7 @@ let firebaseEnabled = false;
  * Initialize Firebase client SDK.
  * Called once at app startup. Degrades gracefully if config is missing.
  */
-export async function initFirebaseClient(): Promise<void> {
+export async function initFirebaseClient(firebaseCustomToken?: string | null): Promise<void> {
   if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL) {
     console.warn(
       '[Firebase] Client config not set. Real-time updates disabled. ' +
@@ -69,11 +70,19 @@ export async function initFirebaseClient(): Promise<void> {
     database = getDatabase(app);
     auth = getAuth(app);
 
-    // Sign in anonymously so security rules allow reads
-    await signInAnonymously(auth);
+    if (firebaseCustomToken) {
+      // Sign in with the backend-issued custom token so that
+      // auth.uid == PostgreSQL user ID — Firestore rules enforce per-manager access.
+      await signInWithCustomToken(auth, firebaseCustomToken);
+      console.info('[Firebase] Client initialized with custom token (per-manager Firestore access)');
+    } else {
+      // Fallback: anonymous auth — allows deviceStatus reads (rule: auth != null)
+      // sessionStatus and dashboardStats reads will be denied until a custom token is provided.
+      await signInAnonymously(auth);
+      console.info('[Firebase] Client initialized with anonymous auth (limited Firestore access)');
+    }
 
     firebaseEnabled = true;
-    console.info('[Firebase] Client initialized — real-time updates enabled');
   } catch (err) {
     console.warn('[Firebase] Client initialization failed — falling back to polling', err);
     firebaseEnabled = false;

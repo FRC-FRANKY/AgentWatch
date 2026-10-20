@@ -23,10 +23,12 @@
 
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getDatabase, type Database, ServerValue } from 'firebase-admin/database';
+import { getFirestore, type Firestore, FieldValue } from 'firebase-admin/firestore';
 import { logger } from './logger';
 
 let firebaseApp: App | null = null;
 let db: Database | null = null;
+let firestore: Firestore | null = null;
 let firebaseEnabled = false;
 
 /**
@@ -62,9 +64,10 @@ export function initFirebase(): void {
     }
 
     db = getDatabase(firebaseApp);
+    firestore = getFirestore(firebaseApp);
     firebaseEnabled = true;
 
-    logger.info({ projectId, databaseURL }, 'Firebase Admin SDK initialized');
+    logger.info({ projectId, databaseURL }, 'Firebase Admin SDK initialized (RTDB + Firestore)');
   } catch (err) {
     logger.error({ err }, 'Firebase initialization failed — running without real-time Firebase');
     firebaseEnabled = false;
@@ -173,3 +176,208 @@ export async function deleteSessionState(sessionId: string): Promise<void> {
 }
 
 export { db };
+
+// ── Firestore: Device Status ──────────────────────────────────────────────────
+
+export interface FirestoreDeviceStatus {
+  deviceId: string;
+  agentUserId: string;
+  status: 'ONLINE' | 'OFFLINE' | 'DISABLED';
+  hostname: string;
+  lastHeartbeatAt: FirebaseFirestore.Timestamp | null;
+  lastSeenIp: string | null;
+  updatedAt: FirebaseFirestore.Timestamp;
+}
+
+/**
+ * Write live device status to Firestore.
+ * Path: deviceStatus/{deviceId}
+ * Frontend reads this collection for real-time ONLINE/OFFLINE badges.
+ */
+export async function setFirestoreDeviceStatus(
+  deviceId: string,
+  agentUserId: string,
+  status: 'ONLINE' | 'OFFLINE' | 'DISABLED',
+  hostname: string,
+  lastSeenIp: string | null,
+): Promise<void> {
+  if (!firebaseEnabled || !firestore) return;
+  try {
+    await firestore.collection('deviceStatus').doc(deviceId).set(
+      {
+        deviceId,
+        agentUserId,
+        status,
+        hostname,
+        lastSeenIp,
+        lastHeartbeatAt: status === 'ONLINE' ? FieldValue.serverTimestamp() : null,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    logger.warn({ err, deviceId }, 'Firestore: failed to set device status');
+  }
+}
+
+/**
+ * Mark a device OFFLINE in Firestore.
+ */
+export async function setFirestoreDeviceOffline(deviceId: string): Promise<void> {
+  if (!firebaseEnabled || !firestore) return;
+  try {
+    await firestore.collection('deviceStatus').doc(deviceId).set(
+      {
+        status: 'OFFLINE' as const,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    logger.warn({ err, deviceId }, 'Firestore: failed to mark device offline');
+  }
+}
+
+// ── Firestore: Session Status ─────────────────────────────────────────────────
+
+export type FirestoreSessionStatus = 'PENDING' | 'CONNECTING' | 'CONNECTED' | 'ENDED' | 'FAILED';
+
+export interface FirestoreSessionDoc {
+  sessionId: string;
+  managerId: string;
+  agentId: string;
+  deviceId: string;
+  status: FirestoreSessionStatus;
+  requestedAt: FirebaseFirestore.Timestamp;
+  startedAt: FirebaseFirestore.Timestamp | null;
+  endedAt: FirebaseFirestore.Timestamp | null;
+  updatedAt: FirebaseFirestore.Timestamp;
+}
+
+/**
+ * Create or update a session document in Firestore.
+ * Path: sessionStatus/{sessionId}
+ */
+export async function setFirestoreSessionStatus(
+  sessionId: string,
+  data: {
+    managerId: string;
+    agentId: string;
+    deviceId: string;
+    status: FirestoreSessionStatus;
+    requestedAt?: Date;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
+  },
+): Promise<void> {
+  if (!firebaseEnabled || !firestore) return;
+  try {
+    const payload: Record<string, unknown> = {
+      sessionId,
+      managerId: data.managerId,
+      agentId: data.agentId,
+      deviceId: data.deviceId,
+      status: data.status,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (data.requestedAt) payload['requestedAt'] = data.requestedAt;
+    if (data.startedAt !== undefined) payload['startedAt'] = data.startedAt ?? null;
+    if (data.endedAt !== undefined) payload['endedAt'] = data.endedAt ?? null;
+
+    await firestore.collection('sessionStatus').doc(sessionId).set(payload, { merge: true });
+  } catch (err) {
+    logger.warn({ err, sessionId }, 'Firestore: failed to update session status');
+  }
+}
+
+/**
+ * Mark a session as ended in Firestore.
+ */
+export async function setFirestoreSessionEnded(
+  sessionId: string,
+  endedAt: Date,
+): Promise<void> {
+  if (!firebaseEnabled || !firestore) return;
+  try {
+    await firestore.collection('sessionStatus').doc(sessionId).set(
+      { status: 'ENDED' as const, endedAt, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+  } catch (err) {
+    logger.warn({ err, sessionId }, 'Firestore: failed to mark session ended');
+  }
+}
+
+// ── Firestore: Dashboard Stats ────────────────────────────────────────────────
+
+export interface FirestoreDashboardStats {
+  managerId: string;
+  onlineAgents: number;
+  offlineAgents: number;
+  activeMonitoring: number;
+  updatedAt: FirebaseFirestore.Timestamp;
+}
+
+/**
+ * Write dashboard stats for a specific manager to Firestore.
+ * Path: dashboardStats/{managerId}
+ *
+ * Called after session start/end and device heartbeat events.
+ * The frontend subscribes to this document for live stat updates.
+ */
+export async function setFirestoreDashboardStats(
+  managerId: string,
+  stats: { onlineAgents: number; offlineAgents: number; activeMonitoring: number },
+): Promise<void> {
+  if (!firebaseEnabled || !firestore) return;
+  try {
+    await firestore.collection('dashboardStats').doc(managerId).set(
+      {
+        managerId,
+        ...stats,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    logger.warn({ err, managerId }, 'Firestore: failed to update dashboard stats');
+  }
+}
+
+export { firestore };
+
+// ── Firebase Custom Tokens ────────────────────────────────────────────────────
+
+/**
+ * Issue a Firebase Custom Token for an authenticated backend user.
+ *
+ * The token's UID is set to the user's PostgreSQL user ID so that
+ * Firestore Security Rules can enforce per-manager document access via
+ * `request.auth.uid == managerId`.
+ *
+ * SECURITY:
+ * - Called only from an authenticated backend route (JWT verified first)
+ * - Uses the Admin SDK — never exposed to unauthenticated callers
+ * - Custom tokens expire after 1 hour (Firebase default, non-configurable)
+ * - The token grants only Firestore read access as defined by security rules
+ *
+ * @param userId  The PostgreSQL user UUID (becomes the Firebase UID)
+ * @param role    Included as a custom claim for potential future rule use
+ * @returns       A signed Firebase custom token string, or null if Firebase is disabled
+ */
+export async function getFirebaseCustomToken(
+  userId: string,
+  role: string,
+): Promise<string | null> {
+  if (!firebaseEnabled || !firebaseApp) return null;
+  try {
+    const { getAuth } = await import('firebase-admin/auth');
+    const adminAuth = getAuth(firebaseApp);
+    const token = await adminAuth.createCustomToken(userId, { role });
+    return token;
+  } catch (err) {
+    logger.warn({ err, userId }, 'Firebase: failed to create custom token');
+    return null;
+  }
+}
+

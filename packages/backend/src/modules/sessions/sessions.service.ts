@@ -21,6 +21,7 @@ import { logger } from '../../config/logger';
 import { env } from '../../config/env';
 import { AuditService } from '../audit/audit.service';
 import { setSessionState, deleteSessionState, setDevicePresence } from '../../config/firebase';
+import { setFirestoreSessionStatus, setFirestoreSessionEnded, setFirestoreDashboardStats } from '../../config/firebase';
 import type { MonitoringSession, CreateSessionDto, EndSessionDto } from '../../shared/types/session.types';
 
 const audit = AuditService.getInstance();
@@ -139,6 +140,17 @@ export async function requestMonitoringSession(
       endedAt: null,
     });
 
+    // Write initial session state to Firestore
+    void setFirestoreSessionStatus(session.id, {
+      managerId,
+      agentId,
+      deviceId,
+      status: 'PENDING',
+      requestedAt: new Date(),
+      startedAt: null,
+      endedAt: null,
+    });
+
     // Update device presence with active session ID
     void setDevicePresence(deviceId, {
       online: true,
@@ -175,10 +187,19 @@ export async function startSession(sessionId: string): Promise<void> {
       details: { managerId: s.manager_id, deviceId: s.device_id },
     });
 
-    // Update Firebase session status to CONNECTED
+    // Update Firebase RTDB session status to CONNECTED
     void setSessionState(sessionId, {
       status: 'CONNECTED',
       startedAt: Date.now(),
+    });
+
+    // Update Firestore session status
+    void setFirestoreSessionStatus(sessionId, {
+      managerId: s.manager_id,
+      agentId: s.agent_id,
+      deviceId: s.device_id,
+      status: 'CONNECTED',
+      startedAt: new Date(),
     });
   }
 }
@@ -274,6 +295,43 @@ export async function endSession(
     lastSeen: Date.now(),
     sessionId: null,
   });
+
+  // Mark session ENDED in Firestore
+  void setFirestoreSessionEnded(sessionId, new Date());
+
+  // Refresh dashboard stats for the session owner in Firestore (best-effort)
+  void (async () => {
+    try {
+      const statsResult = await query<{ status: string; count: string }>(
+        `SELECT d.status, COUNT(DISTINCT d.agent_user_id)::text AS count
+         FROM devices d
+         JOIN users u ON u.id = d.agent_user_id
+         JOIN roles r ON r.id = u.role_id
+         JOIN manager_agent_access maa ON maa.agent_id = u.id AND maa.manager_id = $1
+           AND maa.is_active = TRUE
+         WHERE r.name = 'AGENT' AND d.is_active = TRUE AND u.is_active = TRUE
+         GROUP BY d.status`,
+        [endedById === session.manager_id ? endedById : session.manager_id],
+      );
+      const activeSessions = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM monitoring_sessions
+         WHERE manager_id = $1 AND status IN ('PENDING', 'ACTIVE')`,
+        [session.manager_id],
+      );
+      let online = 0; let offline = 0;
+      for (const r of statsResult.rows) {
+        if (r.status === 'ONLINE') online = parseInt(r.count, 10);
+        else offline += parseInt(r.count, 10);
+      }
+      void setFirestoreDashboardStats(session.manager_id, {
+        onlineAgents: online,
+        offlineAgents: offline,
+        activeMonitoring: parseInt(activeSessions.rows[0]?.count ?? '0', 10),
+      });
+    } catch {
+      // Non-critical — dashboard stats can be slightly stale
+    }
+  })();
 }
 
 export async function getSessionById(

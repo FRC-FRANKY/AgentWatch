@@ -4,6 +4,7 @@ import { Eye, EyeOff, MoonStar, ShieldCheck, SunMedium } from 'lucide-react';
 import { useAuthStore } from '../app/store/authStore';
 import { login, verifyMfa } from '../services/api';
 import { AgentWatchLogo } from '../components/brand';
+import { initFirestore } from '../services/firestore';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -61,6 +62,12 @@ export function LoginPage() {
           expiresIn: result.expiresIn,
           role,
         });
+        // Re-init Firebase with a custom token so Firestore rules use the correct UID
+        void (async () => {
+          const { authApi } = await import('../services/api/index');
+          const firebaseToken = await authApi.getFirebaseToken();
+          void initFirestore(firebaseToken);
+        })();
         navigate('/dashboard', { replace: true });
         return;
       }
@@ -84,6 +91,12 @@ export function LoginPage() {
         expiresIn: result.expiresIn,
         role: serverRole,
       });
+      // Re-init Firebase with a custom token so Firestore rules use the correct UID
+      void (async () => {
+        const { authApi } = await import('../services/api/index');
+        const firebaseToken = await authApi.getFirebaseToken();
+        void initFirestore(firebaseToken);
+      })();
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       // Provide a helpful message when the backend server is unreachable.
