@@ -1,0 +1,49 @@
+# Dockerfile.vercel — Production image for Vercel Container Runtime
+#
+# Requirements:
+#   - The app reads PORT from the environment. Vercel injects $PORT at runtime.
+#   - Only the production stage is used (Vercel does not use multi-stage targets by name).
+#   - The final CMD must start the HTTP server; Vercel routes traffic to it.
+
+# ── Stage 1: Builder ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install all deps (including devDependencies needed for tsc)
+COPY package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY tsconfig.json ./
+COPY src ./src
+
+RUN npm run build
+
+# ── Stage 2: Production ───────────────────────────────────────────────────────
+FROM node:20-alpine AS production
+
+# Security: run as non-root
+RUN apk add --no-cache dumb-init && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S agentwatch -u 1001 -G nodejs
+
+WORKDIR /app
+
+# Only production deps
+COPY package*.json ./
+RUN npm ci --only=production --ignore-scripts
+
+COPY --from=builder /app/dist ./dist
+
+# Ownership
+RUN chown -R agentwatch:nodejs /app
+
+USER agentwatch
+
+# Vercel injects PORT at runtime; Express reads env.PORT (default 4000)
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-4000}/health || exit 1
+
+CMD ["dumb-init", "node", "dist/index.js"]

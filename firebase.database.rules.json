@@ -1,35 +1,17 @@
 {
   "rules": {
-    // ── Presence ─────────────────────────────────────────────────────────────
-    // Device presence is written by the backend (Admin SDK).
-    // Frontend managers read presence of devices they are authorized to monitor.
-    // The security model relies on backend authorization — the frontend reads
-    // only what the backend has written after ownership verification.
-    // Note: Firebase RTDB rules cannot enforce the manager-agent ownership model
-    // (that lives in PostgreSQL). We restrict reads to authenticated users only
-    // and rely on the backend to write the correct data.
     "presence": {
       "$deviceId": {
-        // Only authenticated users can read presence
-        ".read": "auth !== null",
-        // Only Admin SDK (backend) can write
-        ".write": false
+        ".read": "auth !== null"
       }
     },
 
-    // ── Active Sessions ───────────────────────────────────────────────────────
-    // Active monitoring session state. Written by the backend Admin SDK.
-    // Managers can read their own sessions. Agents cannot read session data.
     "sessions": {
       "$sessionId": {
-        // Only authenticated users can read
-        ".read": "auth !== null",
-        // Only Admin SDK can write (write: false disallows client writes)
-        ".write": false
+        ".read": "auth !== null && auth.token.managerId !== null && data.child('managerId').val() === auth.token.managerId"
       }
     },
 
-    // ── Default deny ─────────────────────────────────────────────────────────
     ".read": false,
     ".write": false
   }

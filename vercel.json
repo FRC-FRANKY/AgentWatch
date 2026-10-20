@@ -3,7 +3,8 @@
   "services": {
     "backend": {
       "root": "packages/backend",
-      "runtime": "container"
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
     },
     "frontend": {
       "root": "packages/frontend",

@@ -8,8 +8,8 @@ import { AgentWatchLogo } from '../components/brand';
 export function LoginPage() {
   const navigate = useNavigate();
   const { setSession, isAuthenticated } = useAuthStore();
-  const [email, setEmail] = useState('manager@agentwatch.local');
-  const [password, setPassword] = useState('Manager123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [pendingMfaToken, setPendingMfaToken] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -128,7 +128,6 @@ export function LoginPage() {
         <h1>Secure sign in</h1>
         <p className="notice">
           Transparent, role-based workstation monitoring for authorized company use only.
-          Demo accounts: manager@agentwatch.local / Manager123! · admin@agentwatch.local / Admin123!
         </p>
 
         <form className="form-grid" onSubmit={handleSubmit}>
