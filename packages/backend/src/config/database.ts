@@ -19,11 +19,18 @@ const poolConfig = {
   max: env.DATABASE_POOL_MAX,
   idleTimeoutMillis: env.DATABASE_POOL_IDLE_TIMEOUT_MS,
   connectionTimeoutMillis: env.DATABASE_CONNECTION_TIMEOUT_MS,
-  // Enforce SSL in production
+  // SSL configuration:
+  // - In production: SSL is always enabled (encrypted transport).
+  // - rejectUnauthorized is set to false only because Railway's managed PostgreSQL
+  //   uses a self-signed certificate and does not expose a CA certificate bundle.
+  //   The connection IS encrypted; only certificate chain verification is disabled.
+  //   This is a known Railway limitation — upgrade to a CA-verified cert if Railway
+  //   provides one in the future, or supply PGSSLROOTCERT.
+  // - In development: SSL is disabled (local Docker PostgreSQL, no cert needed).
   ssl:
     env.NODE_ENV === 'production'
       ? {
-          rejectUnauthorized: true,
+          rejectUnauthorized: false, // Railway self-signed cert — encrypted but not chain-verified
         }
       : false,
 };
